@@ -6,6 +6,7 @@ import (
 	rand "math/rand/v2"
 	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -27,9 +28,10 @@ const (
 )
 
 type Model struct {
-	Map   [HEIGHT][WIDTH]string
-	Food  food
-	Snake snake
+	Map     [HEIGHT][WIDTH]string
+	Food    food
+	Snake   snake
+	LastKey time.Time
 }
 
 // 蛇
@@ -85,7 +87,7 @@ func (m *Model) initSnake() {
 	}
 }
 func (m *Model) addSnake() {
-	m.Map[m.Snake.head[0]][m.Snake.head[1]] = "O"
+	m.Map[m.Snake.head[0]][m.Snake.head[1]] = "0"
 	for _, val := range m.Snake.body {
 		m.Map[val[0]][val[1]] = "o"
 	}
@@ -143,6 +145,8 @@ func (m *Model) Init() tea.Cmd {
 	// Just return `nil`, which means "no I/O right now, please."
 	return nil
 }
+
+type Tick struct{} // 定时消息
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var dir Direction = currentDir
 	switch msg := msg.(type) {
@@ -159,10 +163,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
-
+	case Tick:
+		break
 	}
 	currentDir = dir
 	m.moveSnake(dir)
+	if m.isGameOver() {
+		return m, tea.Quit
+	}
 	return m, nil
 }
 func (m *Model) View() string {
@@ -172,9 +180,29 @@ func (m *Model) View() string {
 	}
 	return buf.String()
 }
+
+// isGameOver 游戏是否结束
+func (m *Model) isGameOver() bool {
+	for _, val := range m.Snake.body {
+		if m.Snake.head == val {
+			return true
+		}
+	}
+	if m.Snake.head[0] < 0 || m.Snake.head[0] >= HEIGHT || m.Snake.head[1] < 0 || m.Snake.head[1] >= WIDTH {
+		return true
+	}
+	return false
+}
 func main() {
 	p := tea.NewProgram(initialModel())
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			p.Send(Tick{})
+		}
+	}()
 	if _, err := p.Run(); err != nil {
 		os.Exit(1)
 	}
+
 }
